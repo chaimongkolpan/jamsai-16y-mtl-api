@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model codes {
+  id           BigInt    @id(map: "codes_pk") @default(autoincrement())
+  code         String?   @db.VarChar
+  is_use       Boolean?
+  updated_date DateTime? @db.Timestamp(6)
+}
+
+model send_addresses {
+  id           BigInt    @id(map: "send_addresses_pk") @default(autoincrement())
+  jamsai_id    String?   @db.VarChar
+  name         String?   @db.VarChar
+  mobile       String?   @db.VarChar
+  house_no     String?   @db.VarChar
+  village_no   String?   @db.VarChar
+  road         String?   @db.VarChar
+  sub_district String?   @db.VarChar
+  district     String?   @db.VarChar
+  province     String?   @db.VarChar
+  postalcode   String?   @db.VarChar
+  reward_no    Int?
+  created_date DateTime? @db.Timestamp(6)
+  updated_date DateTime? @db.Timestamp(6)
+  status       String?   @db.VarChar
+  tracking_url String?   @db.VarChar
+  email        String?   @db.VarChar
+}
+
+model submitted_codes {
+  id           BigInt    @id(map: "submitted_codes_pk") @default(autoincrement())
+  code_id      BigInt?
+  jamsai_id    String?   @db.VarChar
+  created_date DateTime? @db.Timestamp(6)
+}
+
+model members {
+  id        BigInt  @id(map: "members_pk") @default(autoincrement())
+  jamsai_id String? @db.VarChar
+  data      String? @db.VarChar
+}
