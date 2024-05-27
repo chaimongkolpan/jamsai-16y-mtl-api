@@ -767,9 +767,6 @@ const postFunc = {
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(cors())
-app.get('/', (req, res) => {
-    res.json({ message: 'Hello from Express on AWS Lambda!' });
-});
 app.get('/hello', (req, res) => {
     res.send('Hello World')
 });
@@ -851,7 +848,7 @@ app.post('/:path', async(req, res) => {
 });
 // #endregion
 
-app.listen(8088, () => {
-    console.log('Start server at port : 8088');
-});
+// app.listen(8088, () => {
+//     console.log('Start server at port : 8088');
+// });
 module.exports.handler = serverless(app);
