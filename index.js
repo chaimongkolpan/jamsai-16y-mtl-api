@@ -302,6 +302,7 @@ const submitCode = async (req, res) => {
         const master_codes = result.rows;
         if (!master_codes || master_codes.length == 0) {
             const err_code = codes.map((code, index) => { return { index, code, is_error: true } })
+            await client.query("INSERT INTO fail_submit (jamsai_id,created_date) VALUES ('" + jamsai_id + "',NOW())");
             res.status(400).send({
                 data: err_code,
                 isSuccess: false,
@@ -316,6 +317,7 @@ const submitCode = async (req, res) => {
         })
         const isAllPass = fail_codes.filter(x => x.is_error).length == 0;
         if (!isAllPass) {
+            await client.query("INSERT INTO fail_submit (jamsai_id,created_date) VALUES ('" + jamsai_id + "',NOW())");
             res.status(400).send({
                 data: fail_codes,
                 isSuccess: false,
