@@ -88,6 +88,23 @@ const address = (item) => {
     + item.district + ', '
     + item.province + ' ' + item.postalcode
 }
+const linkAccount = async (jamsai_id, token) => {
+    try {
+        const result = await axios({
+            method: 'post',
+            url: process.env.JAMSAI_LINE_API_URL + '/line_api/link',
+            headers: {
+                'Content-Type': `application/json`,
+                'Authorization': 'Bearer ' + token,
+            },
+            data: { jamsai_id }
+        })
+        return true;
+    } catch (err) {
+        console.log("Error linkAccount:", err);
+        return false
+    }
+}
 // #endregion
 
 const checkLogin = async (req, res) => {
@@ -123,7 +140,7 @@ const checkLogin = async (req, res) => {
 }
 const login = async (req, res) => {
     try {
-      const { user } = req.body;
+      const { user, token } = req.body;
       if (user) {
           if (isEmail(user)) {
             const token_result = await getTokenEmail();
@@ -175,6 +192,7 @@ const login = async (req, res) => {
                 } else {
                     await client.query("INSERT INTO members (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(users[0]) + "')");
                 }
+                await linkAccount(jamsai_id, token);
                 const result = {
                     ...users[0],
                     reference,
@@ -228,6 +246,7 @@ const login = async (req, res) => {
                 } else {
                     await client.query("INSERT INTO members (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(data) + "')");
                 }
+                await linkAccount(jamsai_id, token);
                 const result = {
                     ...data,
                     reference,
