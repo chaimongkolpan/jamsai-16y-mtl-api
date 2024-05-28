@@ -8,11 +8,29 @@ const upload = multer({ storage: storage, dest: 'init-codes/' })
 const readXlsxFile = require('read-excel-file/node');
 const writeXlsxFile = require('write-excel-file/node');
 const axios = require('axios');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-
+const { Pool } = require('pg');
+const dbConfig = {
+	user: 'postgres',
+	password: 'admin@pass123',
+	host: '143.198.90.136',
+	port: '5432',
+	database: 'jamsai-16y-mtl',
+};
+const client = new Pool(dbConfig);
 const app = express();
-require("dotenv").config();
+const process = {
+    env: {
+        "JAMSAI_API_URL": "https://kd15vees64.execute-api.ap-southeast-1.amazonaws.com/uat",
+        "JAMSAI_API_AUTHEN_URL": "https://jsauth.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
+        "JAMSAI_API_CLIENT_ID": "djpouc9pmk0dldi9i3oprrjm1",
+        "JAMSAI_API_CLIENT_SECRET": "8vsn9uprs8sh16ar7md09oj2rmlsqno52vldnq68001q7jfv8tk",
+        "JAMSAI_EMAIL_API_URL": "https://165jxdcmhj.execute-api.ap-southeast-1.amazonaws.com/uat",
+        "JAMSAI_EMAIL_API_AUTHEN_URL": "https://uat-jamsai-staff.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
+        "JAMSAI_EMAIL_API_CLIENT_ID": "6iji0et1gk4ie937jeg7q4ps55",
+        "JAMSAI_EMAIL_API_CLIENT_SECRET": "1t8gq8hktecdbdjnorau1trpthsjldl1g8trcqge2848l13pflrp",
+        "JAMSAI_LINE_API_URL": "https://kd15vees64.execute-api.ap-southeast-1.amazonaws.com/uat"
+    }
+};
 
 // #region Declare functions
 // #region Private functions
@@ -144,14 +162,17 @@ const login = async (req, res) => {
                     return;
                 }
                 const { jamsai_id } = users[0];
-                const total = await prisma.submitted_codes.count({ where: { jamsai_id } });
-                const addresses = await prisma.send_addresses.count({ where: { jamsai_id } });
+                const result1 = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
+                const total = result1.rows.length > 0 ? result1.rows[0].count : 0;
+                const result2 = await client.query("SELECT COUNT(*) FROM send_addresses WHERE jamsai_id='" + jamsai_id + "'");
+                const addresses = result2.rows.length > 0 ? result2.rows[0].count : 0;
                 const complete = Math.floor(total / 16);
-                const member = await prisma.members.count({ where: { jamsai_id } });
+                const result3 = await client.query("SELECT COUNT(*) FROM members WHERE jamsai_id='" + jamsai_id + "'");
+                const member = result3.rows.length > 0 ? result3.rows[0].count : 0;
                 if (member && member > 0) {
-                    await prisma.members.update({ where: { jamsai_id }, data: { data: JSON.stringify(users[0]) } });
+                    await client.query("UPDATE members SET data='" + JSON.stringify(users[0]) + "' WHERE jamsai_id='" + jamsai_id + "'");
                 } else {
-                    await prisma.members.create({ data: { jamsai_id, data: JSON.stringify(users[0]) } });
+                    await client.query("INSERT INTO members (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(users[0]) + "')");
                 }
                 const result = {
                     ...users[0],
@@ -194,14 +215,17 @@ const login = async (req, res) => {
             if (user_result && user_result.data) {
                 const { message, reference, data } = user_result.data
                 const { jamsai_id } = data;
-                const total = await prisma.submitted_codes.count({ where: { jamsai_id } });
-                const addresses = await prisma.send_addresses.count({ where: { jamsai_id } });
+                const result4 = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
+                const total = result4.rows.length > 0 ? result4.rows[0].count : 0;
+                const result5 = await client.query("SELECT COUNT(*) FROM send_addresses WHERE jamsai_id='" + jamsai_id + "'");
+                const addresses = result5.rows.length > 0 ? result5.rows[0].count : 0;
                 const complete = Math.floor(total / 16);
-                const member = await prisma.members.count({ where: { jamsai_id } });
+                const result6 = await client.query("SELECT COUNT(*) FROM members WHERE jamsai_id='" + jamsai_id + "'");
+                const member = result6.rows.length > 0 ? result6.rows[0].count : 0;
                 if (member && member > 0) {
-                    await prisma.members.update({ where: { jamsai_id }, data: { data: JSON.stringify(data) } });
+                    await client.query("UPDATE members SET data='" + JSON.stringify(data) + "' WHERE jamsai_id='" + jamsai_id + "'");
                 } else {
-                    await prisma.members.create({ data: { jamsai_id, data: JSON.stringify(data) } });
+                    await client.query("INSERT INTO members (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(data) + "')");
                 }
                 const result = {
                     ...data,
@@ -253,11 +277,9 @@ const submitCode = async (req, res) => {
             });
             return;
         }
-        const master_codes = await prisma.codes.findMany({
-            where: {
-                code: { in: codes } 
-            }
-        });
+        const query_codes = codes.map(code => "'" + code + "'").join(',');
+        const result = await client.query("SELECT * FROM codes WHERE code in (" + query_codes + ")")
+        const master_codes = result.rows;
         if (!master_codes || master_codes.length == 0) {
             const err_code = codes.map((code, index) => { return { index, code, is_error: true } })
             res.status(400).send({
@@ -282,26 +304,17 @@ const submitCode = async (req, res) => {
             });
             return;
         } else {
-            const prevCount = await prisma.submitted_codes.count({ where: { jamsai_id } });
-            await prisma.submitted_codes.createMany({
-                data: master_codes.map((code) => ({
-                  code_id: code.id,
-                  jamsai_id,
-                  created_date: new Date(),
-                })),
+            const result1 = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
+            const prevCount = result1.rows.length > 0 ? result1.rows[0].count : 0;
+            const queries = [];
+            master_codes.map((code) => {
+                queries.push(client.query("INSERT INTO submitted_codes (code_id,jamsai_id,created_date) VALUES ('" + code.id + "','" + jamsai_id + "',NOW())"));
             });
+            await Promise.all(queries);
             const updatedCodes = master_codes.map(code => {
-                return code.code;
+                return "'" + code.code + "'";
             })
-            await prisma.codes.updateMany({
-                where: {
-                  code: { in: updatedCodes },
-                },
-                data: {
-                  is_use: true,
-                  updated_date: new Date(),
-                },
-            });
+            await client.query("UPDATE codes SET is_use=TRUE,updated_date=NOW() WHERE code in (" + updatedCodes.join(',') + ")");
             const total = prevCount + codes.length;
             const prevComplete = Math.floor(prevCount / 16);
             const complete = Math.floor(total / 16);
@@ -332,7 +345,8 @@ const submitCode = async (req, res) => {
 const getSummary = async (req, res) => {
     try {
         const { jamsai_id } = req.query;
-        const total = await prisma.submitted_codes.count({ where: { jamsai_id } });
+        const result = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
+        const total = result.rows.length > 0 ? result.rows[0].count : 0;
         const complete = Math.floor(total / 16);
         const collected = total - (complete * 16);
         res.send({
@@ -357,10 +371,8 @@ const getSummary = async (req, res) => {
 const getSendAddress = async (req, res) => {
     try {
         const { jamsai_id } = req.query;
-        const addresses = await prisma.send_addresses.findMany({
-            where: { jamsai_id },
-            orderBy: { reward_no: 'asc' },
-        });
+        const result1 = await client.query("SELECT * FROM send_addresses WHERE jamsai_id='" + jamsai_id + "' ORDER BY reward_no");
+        const addresses = result1.rows;
         const result = addresses.map((addr) => {
             return {
                 ...addr,
@@ -385,17 +397,11 @@ const getSendAddress = async (req, res) => {
 const saveSendAddress = async (req, res) => {
     try {
         const { id, jamsai_id, name, mobile, house_no, village_no, road, sub_district, district, province, postalcode } = req.body;
-        const last = await prisma.send_addresses.findFirst({
-            where: { jamsai_id },
-            orderBy: { reward_no: 'desc' },
-            select: { reward_no: true }
-        });
+        const result1 = await client.query("SELECT TOP(1) reward_no FROM send_addresses WHERE jamsai_id='" + jamsai_id + "' ORDER BY reward_no DESC");
+        const last = result1.rows.length > 0 ? result1.rows[0] : null;
         const reward_no = last ? last.reward_no + 1 : 1;
         if (id) {
-            await prisma.send_addresses.update({
-                where: { id: id },
-                data: { name, mobile, house_no, village_no, road, sub_district, district, province, postalcode, updated_date: new Date() },
-            })
+            await client.query("UPDATE send_addresses SET name='" + name + "', mobile='" + mobile + "', house_no='" + house_no + "', village_no='" + village_no + "', road='" + road + "', sub_district='" + sub_district + "', district='" + district + "', province='" + province + "', postalcode='" + postalcode + "', updated_date=NOW() WHERE id=" + id);
         } else {
             const token_result = await getToken();
             if (!token_result) {
@@ -419,9 +425,9 @@ const saveSendAddress = async (req, res) => {
                 const { data } = user_result.data
                 email = data.email;
             }
-            await prisma.send_addresses.create({
-                data: { jamsai_id, name, mobile, house_no, village_no, road, sub_district, district, province, postalcode, reward_no, created_date: new Date(), updated_date: new Date(), status: 'ได้รับข้อมูล', email },
-            })
+            const query = "INSERT INTO send_addresses (jamsai_id, name, mobile, house_no, village_no, road, sub_district, district, province, postalcode, reward_no, created_date, updated_date, status, email) VALUES "
+            + "('" + jamsai_id + "','" + name + "','" + mobile + "','" + house_no + "','" + village_no + "','" + road + "','" + sub_district + "','" + district + "','" + province + "','" + postalcode + "'," + reward_no + ",NOW(),NOW(),'" + status + "')";
+            await client.query(query);
         }
         res.send({
             isSuccess: true,
@@ -441,7 +447,7 @@ const updateSendStatus = async (req, res) => {
     try {
         const { id, status, tracking_url } = req.body;
         if (id) {
-            await prisma.send_addresses.update({ where: { id: parseInt(id) }, data: { status, tracking_url } })
+            await client.query("UPDATE send_addresses SET status='" + status + "',tracking_url='" + (tracking_url ?? '') + "' WHERE id=" + parseInt(id));
             res.redirect('/report');
         } else {
             res.status(400).send({
@@ -463,7 +469,7 @@ const updateSendAll = async (req, res) => {
     try {
         const { status } = req.body;
         if (status) {
-            await prisma.send_addresses.updateMany({ data: { status } })
+            await client.query("UPDATE send_addresses SET status='" + status + "';");
             res.redirect('/report');
         } else {
             res.status(400).send({
@@ -483,11 +489,8 @@ const updateSendAll = async (req, res) => {
 }
 const report = async (req, res) => {
     const { search } = req.query;
-    const condition = (!search || search == 'ทั้งหมด' ? {} : { status: search })
-    const data = await prisma.send_addresses.findMany({ 
-        where: condition,
-        orderBy: [{ jamsai_id: 'asc' },{ reward_no: 'asc' }] 
-    });
+    const result = await client.query('SELECT * FROM send_addresses ' + (!search || search == 'ทั้งหมด' ? '' : 'WHERE status=\'' + search + '\'') + ' ORDER BY jamsai_id asc, reward_no asc');
+	const data = result.rows;
     let rows = '';
     for(let i in data) {
         const item = data[i];
@@ -530,7 +533,7 @@ const report = async (req, res) => {
     + '<option>ได้รับข้อมูล</option><option>เตรียมจัดส่ง</option><option>จัดส่งแล้ว</option>' 
     + '</select>&nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #000;">บันทึก</button></form>'
     + table + '</div></div></body></html>';
-    res.send(html)
+    res.send(html);
 }
 const reportExport = async (req, res) => {
     const HEADER_ROW = [
@@ -567,7 +570,8 @@ const reportExport = async (req, res) => {
           fontWeight: 'bold'
         },
     ]
-    const addresses = await prisma.send_addresses.findMany({ orderBy: [{ jamsai_id: 'asc' },{ reward_no: 'asc' }] });
+    const result = await client.query('SELECT * FROM send_addresses ORDER BY jamsai_id asc, reward_no asc');
+    const addresses = result.rows;
     let rows = [];
     for(let i in addresses) {
         const item = addresses[i];
@@ -620,23 +624,17 @@ const reportExport = async (req, res) => {
     res.end(buffer)
 }
 const tracking = async (req, res) => {
-    const codes = await prisma.submitted_codes.groupBy({
-        by: ['jamsai_id'],
-        _count: {
-            code_id: true,
-        },
-    });
-    const jamsai_ids = codes.map(code => code.jamsai_id);
-    const members = await prisma.members.findMany({ 
-        where: { jamsai_id: { in: jamsai_ids } },
-        orderBy: { jamsai_id: 'asc' },
-    });
+    const result1 = await client.query('SELECT jamsai_id, COUNT(jamsai_id) FROM submitted_codes GROUP BY jamsai_id');
+	const codes = result1.rows;
+    const jamsai_ids = codes.map(code => "'" + code.jamsai_id + "'");
+    const result2 = await client.query('SELECT * FROM members WHERE jamsai_id in (' + jamsai_ids.join(',') + ') ORDER BY jamsai_id');
+    const members = result2.rows;
     const data = members.map(member => {
         const code = codes.find(x => x.jamsai_id == member.jamsai_id);
         const detail = JSON.parse(member.data);
         return {
             ...detail,
-            code_count: code ? code._count?.code_id : 0,
+            code_count: code ? code.count : 0,
         }
     })
     let rows = '';
@@ -660,7 +658,7 @@ const tracking = async (req, res) => {
     + '<form method="get" action="/tracking-export" target="_blank" style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
     + '<button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff; cursor: pointer;">Export</button></form>'
     + table + '</div></div></body></html>';
-    res.send(html)
+    res.send(html);
 }
 const trackingExport = async (req, res) => {
     const HEADER_ROW = [
@@ -685,25 +683,19 @@ const trackingExport = async (req, res) => {
           fontWeight: 'bold'
         },
     ]
-    const codes = await prisma.submitted_codes.groupBy({
-        by: ['jamsai_id'],
-        _count: {
-            code_id: true,
-        },
-    });
-    const jamsai_ids = codes.map(code => code.jamsai_id);
-    const members = await prisma.members.findMany({ 
-        where: { jamsai_id: { in: jamsai_ids } },
-        orderBy: { jamsai_id: 'asc' },
-    });
+    const result1 = await client.query('SELECT jamsai_id, COUNT(jamsai_id) FROM submitted_codes GROUP BY jamsai_id');
+	const codes = result1.rows;
+    const jamsai_ids = codes.map(code => "'" + code.jamsai_id + "'");
+    const result2 = await client.query('SELECT * FROM members WHERE jamsai_id in (' + jamsai_ids.join(',') + ') ORDER BY jamsai_id');
+    const members = result2.rows;
     const member_data = members.map(member => {
         const code = codes.find(x => x.jamsai_id == member.jamsai_id);
         const detail = JSON.parse(member.data);
         return {
             ...detail,
-            code_count: code ? code._count?.code_id : 0,
+            code_count: code ? code.count : 0,
         }
-    })
+    });
     let rows = [];
     for(let i in member_data) {
         const item = member_data[i];
@@ -725,7 +717,7 @@ const trackingExport = async (req, res) => {
                 value: item.email
             },
             {
-                type: Number,
+                type: String,
                 value: item.code_count
             },
         ])
@@ -738,10 +730,10 @@ const trackingExport = async (req, res) => {
     const fileName = 'tracking.xlsx';
     const fileType = 'application/vnd.ms-excel';
     res.writeHead(200, {
-      'Content-Disposition': `attachment; filename="${fileName}"`,
-      'Content-Type': fileType,
+    'Content-Disposition': `attachment; filename="${fileName}"`,
+    'Content-Type': fileType,
     })
-    res.end(buffer)
+    res.end(buffer);
 }
 
 // #endregion
@@ -847,8 +839,7 @@ app.post('/:path', async(req, res) => {
     await postFunc[path](req, res);
 });
 // #endregion
-
-// app.listen(8088, () => {
-//     console.log('Start server at port : 8088');
-// });
-module.exports.handler = serverless(app);
+// app.listen(8088, ()=> {
+//     console.log('Start')
+// })
+// module.exports.handler = serverless(app);
