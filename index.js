@@ -842,4 +842,4 @@ app.post('/:path', async(req, res) => {
 // app.listen(8088, ()=> {
 //     console.log('Start')
 // })
-// module.exports.handler = serverless(app);
+module.exports.handler = serverless(app);
