@@ -20,6 +20,7 @@ const client = new Pool(dbConfig);
 const app = express();
 const process = {
     env: {
+        "stage": "/uat",
         "JAMSAI_API_URL": "https://kd15vees64.execute-api.ap-southeast-1.amazonaws.com/uat",
         "JAMSAI_API_AUTHEN_URL": "https://jsauth.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
         "JAMSAI_API_CLIENT_ID": "djpouc9pmk0dldi9i3oprrjm1",
@@ -448,7 +449,7 @@ const updateSendStatus = async (req, res) => {
         const { id, status, tracking_url } = req.body;
         if (id) {
             await client.query("UPDATE send_addresses SET status='" + status + "',tracking_url='" + (tracking_url ?? '') + "' WHERE id=" + parseInt(id));
-            res.redirect('/report');
+            res.redirect(process.env.stage + '/report');
         } else {
             res.status(400).send({
                 isSuccess: false,
@@ -470,7 +471,7 @@ const updateSendAll = async (req, res) => {
         const { status } = req.body;
         if (status) {
             await client.query("UPDATE send_addresses SET status='" + status + "';");
-            res.redirect('/report');
+            res.redirect(process.env.stage + '/report');
         } else {
             res.status(400).send({
                 isSuccess: false,
@@ -502,7 +503,7 @@ const report = async (req, res) => {
         + item.reward_no + '</td><td>' 
         + address(item) + '</td><th>' 
         + item.status + '</th><td>' 
-        + '<form method="post" action="/update-address-status" style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 0; row-gap: 16px;"><input name="id" type="hidden" value="' + item.id 
+        + '<form method="post" action="' + process.env.stage + '/update-address-status" style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 0; row-gap: 16px;"><input name="id" type="hidden" value="' + item.id 
         + '"/><select name="status" style="width: 100%; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;"><option' + (item.status == 'ได้รับข้อมูล' ? ' selected' : '')
         + '>ได้รับข้อมูล</option><option' + (item.status == 'เตรียมจัดส่ง' ? ' selected' : '')
         + '>เตรียมจัดส่ง</option><option' + (item.status == 'จัดส่งแล้ว' ? ' selected' : '')
@@ -516,19 +517,19 @@ const report = async (req, res) => {
     + '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 500px; width: 80%; margin-left: auto; margin-right: auto;border: 1px solid #ddd;">'
     + '<h1 style="margin: 40px auto 24px auto;">Jamsai 16 ปีแห่งความรัก Report</h1>'
     + '<div style="width: 100%; border-bottom: 1px solid #ddd;"><button style="border-radius: 8px 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #E9E2ED; border-bottom: none;">Report</button>'
-    + '<button style="border-radius: 0 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-left: none;" onclick="window.location.href=\'/tracking\'">Tracking Status</button></div>'
-    + '<form method="post" action="/report-import" style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end; align-items: center;" enctype="multipart/form-data">'
+    + '<button style="border-radius: 0 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-left: none;" onclick="window.location.href=\'' + process.env.stage + '/tracking\'">Tracking Status</button></div>'
+    + '<form method="post" action="' + process.env.stage + '/report-import" style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end; align-items: center;" enctype="multipart/form-data">'
     + '<input type="file" name="file" style="width: 250px; padding: 8px; border: 1px solid #e0e0e0;" />'
     + '<button type="submit" style="border-radius: 10px; border: 1px solid #CD6A39; padding: 8px 32px; font-size: 16px; background-color: #E2895D; color: #fff; cursor: pointer;">Import</button></form>'
-    + '<form method="get" action="/report-export" target="_blank" style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
+    + '<form method="get" action="' + process.env.stage + '/report-export" target="_blank" style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
     + '<button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff; cursor: pointer;">Export</button></form>'
-    + '<form method="get" action="/report" style="margin-bottom: 24px; display: flex; align-items: center;"><h4>ค้นหา :</h4>&nbsp;&nbsp;'
+    + '<form method="get" action="' + process.env.stage + '/report" style="margin-bottom: 24px; display: flex; align-items: center;"><h4>ค้นหา :</h4>&nbsp;&nbsp;'
     + '<select name="search" style="width: 150px; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;"><option' + (!search || search == 'ทั้งหมด' ? ' selected' : '')
     + '>ทั้งหมด</option><option' + (search == 'ได้รับข้อมูล' ? ' selected' : '')
     + '>ได้รับข้อมูล</option><option' + (search == 'เตรียมจัดส่ง' ? ' selected' : '')
     + '>เตรียมจัดส่ง</option><option' + (search == 'จัดส่งแล้ว' ? ' selected' : '')
     + '>จัดส่งแล้ว</option></select>&nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" style="border-radius: 10px; border: 1px solid #ddd; padding: 8px 32px; font-size: 16px; background-color: #E9E2ED; color: #000;">ค้นหา</button></form>'
-    + '<form method="post" action="/update-address-all" style="margin-bottom: 24px; display: flex; align-items: center;"><h4>เปลี่ยนสถานะ :</h4>&nbsp;&nbsp;'
+    + '<form method="post" action="' + process.env.stage + '/update-address-all" style="margin-bottom: 24px; display: flex; align-items: center;"><h4>เปลี่ยนสถานะ :</h4>&nbsp;&nbsp;'
     + '<select name="status" style="width: 150px; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;">' 
     + '<option>ได้รับข้อมูล</option><option>เตรียมจัดส่ง</option><option>จัดส่งแล้ว</option>' 
     + '</select>&nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #000;">บันทึก</button></form>'
@@ -649,13 +650,13 @@ const tracking = async (req, res) => {
         rows += row;
     }
     const table = '<table style="width: 100%;"><tr><th>#</th><th>Jamsai ID</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>Email</th><th>จำนวน Code</th></tr>' + rows + '</table>';
-    const html = '<html><head><title>16ปี แห่งความรัก - Report</title><style> th,td { border-bottom: 1px solid #ddd; padding: 8px 16px; } h4 { width: 150px; text-align: right; }</style></head><body>'
+    const html = '<html><head><title>16ปี แห่งความรัก - Tracking</title><style> th,td { border-bottom: 1px solid #ddd; padding: 8px 16px; } h4 { width: 150px; text-align: right; }</style></head><body>'
     + '<div style="width: 100%; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 500px;">'
     + '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 500px; width: 80%; margin-left: auto; margin-right: auto;border: 1px solid #ddd;">'
-    + '<h1 style="margin: 40px auto 24px auto;">Jamsai 16 ปีแห่งความรัก Report</h1>'
-    + '<div style="width: 100%; border-bottom: 1px solid #ddd;"><button style="border-radius: 8px 0 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-right: none;" onclick="window.location.href=\'/report\'">Report</button>'
+    + '<h1 style="margin: 40px auto 24px auto;">Jamsai 16 ปีแห่งความรัก Tracking</h1>'
+    + '<div style="width: 100%; border-bottom: 1px solid #ddd;"><button style="border-radius: 8px 0 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-right: none;" onclick="window.location.href=\'' + process.env.stage + '/report\'">Report</button>'
     + '<button style="border-radius: 8px 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #E9E2ED; border-bottom: none;">Tracking Status</button></div>'
-    + '<form method="get" action="/tracking-export" target="_blank" style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
+    + '<form method="get" action="' + process.env.stage + '/tracking-export" target="_blank" style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
     + '<button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff; cursor: pointer;">Export</button></form>'
     + table + '</div></div></body></html>';
     res.send(html);
