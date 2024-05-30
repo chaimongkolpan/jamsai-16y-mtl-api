@@ -97,7 +97,7 @@ const linkAccount = async (jamsai_id, token) => {
     try {
         const result = await axios({
             method: 'post',
-            url: process.env.JAMSAI_LINE_API_URL + '/line_api/link/' + jamsai_id,
+            url: process.env.JAMSAI_LINE_API_URL + '/line_api/link',
             headers: {
                 'Content-Type': `application/json`,
                 'Authorization': 'Bearer ' + token,
