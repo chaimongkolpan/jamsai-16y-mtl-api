@@ -2,36 +2,41 @@ const express = require('express');
 const serverless = require('serverless-http');
 var bodyParser = require("body-parser");
 var cors = require('cors');
-const multer  = require('multer');
-const storage = multer.memoryStorage()
-const upload = multer({ storage: storage, dest: 'init-codes/' })
 const readXlsxFile = require('read-excel-file/node');
 const writeXlsxFile = require('write-excel-file/node');
+const { Buffer } = require('node:buffer');
 const axios = require('axios');
 const { Pool } = require('pg');
+
+// const process = {
+//     env: {
+//         "STAGE": "",
+//         "DB_USER": "kiosk",
+//         "DB_PASS": "D3vk10sk",
+//         "DB_HOST": "dev-cms-share-postgres-cluster.cluster-cizjvrn1bqjx.ap-southeast-1.rds.amazonaws.com",
+//         "DB_PORT": "5432",
+//         "DB_NAME": "uat_kiosk_db",
+//         "JAMSAI_API_URL": "https://kd15vees64.execute-api.ap-southeast-1.amazonaws.com/uat",
+//         "JAMSAI_API_AUTHEN_URL": "https://jsauth.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
+//         "JAMSAI_API_CLIENT_ID": "djpouc9pmk0dldi9i3oprrjm1",
+//         "JAMSAI_API_CLIENT_SECRET": "8vsn9uprs8sh16ar7md09oj2rmlsqno52vldnq68001q7jfv8tk",
+//         "JAMSAI_EMAIL_API_URL": "https://165jxdcmhj.execute-api.ap-southeast-1.amazonaws.com/uat",
+//         "JAMSAI_EMAIL_API_AUTHEN_URL": "https://uat-jamsai-staff.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
+//         "JAMSAI_EMAIL_API_CLIENT_ID": "6iji0et1gk4ie937jeg7q4ps55",
+//         "JAMSAI_EMAIL_API_CLIENT_SECRET": "1t8gq8hktecdbdjnorau1trpthsjldl1g8trcqge2848l13pflrp",
+//         "JAMSAI_LINE_API_URL": "https://kd15vees64.execute-api.ap-southeast-1.amazonaws.com/uat"
+//     }
+// }
+
 const dbConfig = {
-	user: 'postgres',
-	password: 'admin@pass123',
-	host: '143.198.90.136',
-	port: '5432',
-	database: 'jamsai-16y-mtl',
+	user: process.env.DB_USER,
+	password: process.env.DB_PASS,
+	host: process.env.DB_HOST,
+	port: process.env.DB_PORT,
+	database: process.env.DB_NAME,
 };
 const client = new Pool(dbConfig);
 const app = express();
-const process = {
-    env: {
-        "stage": "/uat",
-        "JAMSAI_API_URL": "https://kd15vees64.execute-api.ap-southeast-1.amazonaws.com/uat",
-        "JAMSAI_API_AUTHEN_URL": "https://jsauth.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
-        "JAMSAI_API_CLIENT_ID": "djpouc9pmk0dldi9i3oprrjm1",
-        "JAMSAI_API_CLIENT_SECRET": "8vsn9uprs8sh16ar7md09oj2rmlsqno52vldnq68001q7jfv8tk",
-        "JAMSAI_EMAIL_API_URL": "https://165jxdcmhj.execute-api.ap-southeast-1.amazonaws.com/uat",
-        "JAMSAI_EMAIL_API_AUTHEN_URL": "https://uat-jamsai-staff.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
-        "JAMSAI_EMAIL_API_CLIENT_ID": "6iji0et1gk4ie937jeg7q4ps55",
-        "JAMSAI_EMAIL_API_CLIENT_SECRET": "1t8gq8hktecdbdjnorau1trpthsjldl1g8trcqge2848l13pflrp",
-        "JAMSAI_LINE_API_URL": "https://kd15vees64.execute-api.ap-southeast-1.amazonaws.com/uat"
-    }
-};
 
 // #region Declare functions
 // #region Private functions
@@ -337,6 +342,7 @@ const submitCode = async (req, res) => {
                 return "'" + code.code + "'";
             })
             await client.query("UPDATE codes SET is_use=TRUE,updated_date=NOW() WHERE code in (" + updatedCodes.join(',') + ")");
+            await client.query("DELETE FROM fail_submit WHERE jamsai_id='" + jamsai_id + "'");
             const total = prevCount + codes.length;
             const prevComplete = Math.floor(prevCount / 16);
             const complete = Math.floor(total / 16);
@@ -470,7 +476,7 @@ const updateSendStatus = async (req, res) => {
         const { id, status, tracking_url } = req.body;
         if (id) {
             await client.query("UPDATE send_addresses SET status='" + status + "',tracking_url='" + (tracking_url ?? '') + "' WHERE id=" + parseInt(id));
-            res.redirect(process.env.stage + '/report');
+            res.redirect(process.env.STAGE + '/report');
         } else {
             res.status(400).send({
                 isSuccess: false,
@@ -492,7 +498,7 @@ const updateSendAll = async (req, res) => {
         const { status } = req.body;
         if (status) {
             await client.query("UPDATE send_addresses SET status='" + status + "';");
-            res.redirect(process.env.stage + '/report');
+            res.redirect(process.env.STAGE + '/report');
         } else {
             res.status(400).send({
                 isSuccess: false,
@@ -524,12 +530,12 @@ const report = async (req, res) => {
         + item.reward_no + '</td><td>' 
         + address(item) + '</td><th>' 
         + item.status + '</th><td>' 
-        + '<form method="post" action="' + process.env.stage + '/update-address-status" style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 0; row-gap: 16px;"><input name="id" type="hidden" value="' + item.id 
+        + '<form method="post" action="' + process.env.STAGE + '/update-address-status" style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 0; row-gap: 16px;"><input name="id" type="hidden" value="' + item.id 
         + '"/><select name="status" style="width: 100%; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;"><option' + (item.status == 'ได้รับข้อมูล' ? ' selected' : '')
         + '>ได้รับข้อมูล</option><option' + (item.status == 'เตรียมจัดส่ง' ? ' selected' : '')
         + '>เตรียมจัดส่ง</option><option' + (item.status == 'จัดส่งแล้ว' ? ' selected' : '')
         + '>จัดส่งแล้ว</option></select><input type="text" name="tracking_url" value="'
-        + (item.tracking_url ?? '') + '" placeholder="Tracking url" style="width: 100%; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;"/><button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff;">บันทึก</button></form></td></tr>';
+        + (item.tracking_url && item.tracking_url != 'null' ? item.tracking_url : '') + '" placeholder="Tracking url" style="width: 100%; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;"/><button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff;">บันทึก</button></form></td></tr>';
         rows += row;
     }
     const table = '<table style="width: 100%;"><tr><th>#</th><th>Jamsai ID</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>Email</th><th>Reward no.</th><th>ที่อยู่จัดส่ง</th><th>สถานะ</th><th>Action</th></tr>' + rows + '</table>';
@@ -538,23 +544,30 @@ const report = async (req, res) => {
     + '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 500px; width: 80%; margin-left: auto; margin-right: auto;border: 1px solid #ddd;">'
     + '<h1 style="margin: 40px auto 24px auto;">Jamsai 16 ปีแห่งความรัก Report</h1>'
     + '<div style="width: 100%; border-bottom: 1px solid #ddd;"><button style="border-radius: 8px 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #E9E2ED; border-bottom: none;">Report</button>'
-    + '<button style="border-radius: 0 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-left: none;" onclick="window.location.href=\'' + process.env.stage + '/tracking\'">Tracking Status</button></div>'
-    + '<form method="post" action="' + process.env.stage + '/report-import" style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end; align-items: center;" enctype="multipart/form-data">'
-    + '<input type="file" name="file" style="width: 250px; padding: 8px; border: 1px solid #e0e0e0;" />'
-    + '<button type="submit" style="border-radius: 10px; border: 1px solid #CD6A39; padding: 8px 32px; font-size: 16px; background-color: #E2895D; color: #fff; cursor: pointer;">Import</button></form>'
-    + '<form method="get" action="' + process.env.stage + '/report-export" target="_blank" style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
-    + '<button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff; cursor: pointer;">Export</button></form>'
-    + '<form method="get" action="' + process.env.stage + '/report" style="margin-bottom: 24px; display: flex; align-items: center;"><h4>ค้นหา :</h4>&nbsp;&nbsp;'
+    + '<button style="border-radius: 0 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-left: none;" onclick="window.location.href=\'' + process.env.STAGE + '/tracking\'">Tracking Status</button></div>'
+    + '<div style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end; align-items: center;">'
+    + '<input id="upload-file" type="file" name="file" style="width: 250px; padding: 8px; border: 1px solid #e0e0e0;" />'
+    + '<button id="import" type="button" style="border-radius: 10px; border: 1px solid #CD6A39; padding: 8px 32px; font-size: 16px; background-color: #E2895D; color: #fff; cursor: pointer;">Import</button></div>'
+    + '<div style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
+    + '<button id="export" type="button" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff; cursor: pointer;">Export</button></div>'
+    + '<form method="get" action="' + process.env.STAGE + '/report" style="margin-bottom: 24px; display: flex; align-items: center;"><h4>ค้นหา :</h4>&nbsp;&nbsp;'
     + '<select name="search" style="width: 150px; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;"><option' + (!search || search == 'ทั้งหมด' ? ' selected' : '')
     + '>ทั้งหมด</option><option' + (search == 'ได้รับข้อมูล' ? ' selected' : '')
     + '>ได้รับข้อมูล</option><option' + (search == 'เตรียมจัดส่ง' ? ' selected' : '')
     + '>เตรียมจัดส่ง</option><option' + (search == 'จัดส่งแล้ว' ? ' selected' : '')
     + '>จัดส่งแล้ว</option></select>&nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" style="border-radius: 10px; border: 1px solid #ddd; padding: 8px 32px; font-size: 16px; background-color: #E9E2ED; color: #000;">ค้นหา</button></form>'
-    + '<form method="post" action="' + process.env.stage + '/update-address-all" style="margin-bottom: 24px; display: flex; align-items: center;"><h4>เปลี่ยนสถานะ :</h4>&nbsp;&nbsp;'
+    + '<form method="post" action="' + process.env.STAGE + '/update-address-all" style="margin-bottom: 24px; display: flex; align-items: center;"><h4>เปลี่ยนสถานะ :</h4>&nbsp;&nbsp;'
     + '<select name="status" style="width: 150px; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;">' 
     + '<option>ได้รับข้อมูล</option><option>เตรียมจัดส่ง</option><option>จัดส่งแล้ว</option>' 
     + '</select>&nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #000;">บันทึก</button></form>'
-    + table + '</div></div></body></html>';
+    + table + '</div></div></body>'
+    + '<script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>'
+    + '<script>$(document).ready(() => {  function base64ToBlob(b64Data, sliceSize = 512) {let byteCharacters = atob(b64Data);let byteArrays = [];for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {let slice = byteCharacters.slice(offset, offset + sliceSize);let byteNumbers = new Array(slice.length);for (var i = 0; i < slice.length; i++) {byteNumbers[i] = slice.charCodeAt(i);}let byteArray = new Uint8Array(byteNumbers);byteArrays.push(byteArray);} return new Blob(byteArrays, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });};'
+    + 'const toBase64 = file => new Promise((resolve, reject) => {const reader = new FileReader();reader.onload  = () => resolve(reader.result); reader.readAsDataURL(file); reader.onerror = reject;});'
+    + '$("#export").click(() => {fetch("' + process.env.STAGE + '/report-export").then(resp => resp.json()).then(res => {const { result } = res;let blob = base64ToBlob(result, result.length);const url = URL.createObjectURL(blob);const a = document.createElement("a");a.style.display = "none";a.href = url;a.download = "report.xlsx";document.body.appendChild(a);a.click();}).catch(err => console.log("oh no!", err));});'
+    + '$("#import").click(async() => {const file = document.querySelector("#upload-file").files[0];const binaryData = await toBase64(file);const data = binaryData.replace("data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,", "");$.ajax({type: "POST", url: "' + process.env.STAGE + '/report-import", data: { data: data }, dataType: "json"}); setTimeout(() => location.reload(), 1000); });'
+    + '})</script>'
+    + '</html>';
     res.send(html);
 }
 const reportExport = async (req, res) => {
@@ -637,49 +650,56 @@ const reportExport = async (req, res) => {
         ...rows
     ];
     const buffer = await writeXlsxFile(data, { buffer: true });
-    const fileName = 'report.xlsx';
-    const fileType = 'application/vnd.ms-excel';
-    res.writeHead(200, {
-      'Content-Disposition': `attachment; filename="${fileName}"`,
-      'Content-Type': fileType,
-    })
-    res.end(buffer)
+    // const fileName = 'report.xlsx';
+    // const fileType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    // res.writeHead(200, {
+    //   'Content-Disposition': `attachment; filename="${fileName}"`,
+    //   'Content-Type': fileType,
+    // })
+    // res.isBase64Encoded = true;
+    // res.end(Buffer.from(buffer).toString('base64'));
+    res.send({ result: Buffer.from(buffer).toString('base64') })
 }
 const tracking = async (req, res) => {
     const result1 = await client.query('SELECT jamsai_id, COUNT(jamsai_id) FROM submitted_codes GROUP BY jamsai_id');
 	const codes = result1.rows;
-    const jamsai_ids = codes.map(code => "'" + code.jamsai_id + "'");
-    const result2 = await client.query('SELECT * FROM members WHERE jamsai_id in (' + jamsai_ids.join(',') + ') ORDER BY jamsai_id');
-    const members = result2.rows;
-    const data = members.map(member => {
-        const code = codes.find(x => x.jamsai_id == member.jamsai_id);
-        const detail = JSON.parse(member.data);
-        return {
-            ...detail,
-            code_count: code ? code.count : 0,
-        }
-    })
     let rows = '';
-    for(let i in data) {
-        const item = data[i];
-        const row = '<tr style="background-color:' + (item.status == 'เตรียมจัดส่ง' ? '#FEFFD2' : (item.status == 'จัดส่งแล้ว' ? '#BAE9FF' : '#fafafa')) + ';"><td style="text-align: center; padding: 8px 0;">' + (parseInt(i) + 1) + '</td><td>' 
-        + item.jamsai_id + '</td><td>' 
-        + (item.firstname + ' ' + item.lastname) + '</td><td>' 
-        + (item.mobile ?? '') + '</td><td>' 
-        + (item.email ?? '') + '</td><td style="text-align: center;">' 
-        + item.code_count + '</td></tr>'
-        rows += row;
+    if(codes.length > 0) {
+        const jamsai_ids = codes.map(code => "'" + code.jamsai_id + "'");
+        const result2 = await client.query('SELECT * FROM members WHERE jamsai_id in (' + jamsai_ids.join(',') + ') ORDER BY jamsai_id');
+        const members = result2.rows;
+        const data = members.map(member => {
+            const code = codes.find(x => x.jamsai_id == member.jamsai_id);
+            const detail = JSON.parse(member.data);
+            return {
+                ...detail,
+                code_count: code ? code.count : 0,
+            }
+        })
+        for(let i in data) {
+            const item = data[i];
+            const row = '<tr style="background-color:' + (item.status == 'เตรียมจัดส่ง' ? '#FEFFD2' : (item.status == 'จัดส่งแล้ว' ? '#BAE9FF' : '#fafafa')) + ';"><td style="text-align: center; padding: 8px 0;">' + (parseInt(i) + 1) + '</td><td>' 
+            + item.jamsai_id + '</td><td>' 
+            + (item.firstname + ' ' + item.lastname) + '</td><td>' 
+            + (item.mobile ?? '') + '</td><td>' 
+            + (item.email ?? '') + '</td><td style="text-align: center;">' 
+            + item.code_count + '</td></tr>'
+            rows += row;
+        }
     }
     const table = '<table style="width: 100%;"><tr><th>#</th><th>Jamsai ID</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>Email</th><th>จำนวน Code</th></tr>' + rows + '</table>';
     const html = '<html><head><title>16ปี แห่งความรัก - Tracking</title><style> th,td { border-bottom: 1px solid #ddd; padding: 8px 16px; } h4 { width: 150px; text-align: right; }</style></head><body>'
     + '<div style="width: 100%; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 500px;">'
     + '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 500px; width: 80%; margin-left: auto; margin-right: auto;border: 1px solid #ddd;">'
     + '<h1 style="margin: 40px auto 24px auto;">Jamsai 16 ปีแห่งความรัก Tracking</h1>'
-    + '<div style="width: 100%; border-bottom: 1px solid #ddd;"><button style="border-radius: 8px 0 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-right: none;" onclick="window.location.href=\'' + process.env.stage + '/report\'">Report</button>'
+    + '<div style="width: 100%; border-bottom: 1px solid #ddd;"><button style="border-radius: 8px 0 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-right: none;" onclick="window.location.href=\'' + process.env.STAGE + '/report\'">Report</button>'
     + '<button style="border-radius: 8px 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #E9E2ED; border-bottom: none;">Tracking Status</button></div>'
-    + '<form method="get" action="' + process.env.stage + '/tracking-export" target="_blank" style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
-    + '<button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff; cursor: pointer;">Export</button></form>'
-    + table + '</div></div></body></html>';
+    + '<div style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
+    + '<button id="export" type="button" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff; cursor: pointer;">Export</button></div>'
+    + table + '</div></div></body>'
+    + '<script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>'
+    + '<script>$(document).ready(() => {  function base64ToBlob(b64Data, sliceSize = 512) {let byteCharacters = atob(b64Data);let byteArrays = [];for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {let slice = byteCharacters.slice(offset, offset + sliceSize);let byteNumbers = new Array(slice.length);for (var i = 0; i < slice.length; i++) {byteNumbers[i] = slice.charCodeAt(i);}let byteArray = new Uint8Array(byteNumbers);byteArrays.push(byteArray);} return new Blob(byteArrays, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });}; $("#export").click(() => {fetch("' + process.env.STAGE + '/tracking-export").then(resp => resp.json()).then(res => {const { result } = res;let blob = base64ToBlob(result, result.length);const url = URL.createObjectURL(blob);const a = document.createElement("a");a.style.display = "none";a.href = url;a.download = "tracking.xlsx";document.body.appendChild(a);a.click();}).catch(err => console.log("oh no!", err));});})</script>'
+    + '</html>';
     res.send(html);
 }
 const trackingExport = async (req, res) => {
@@ -707,55 +727,83 @@ const trackingExport = async (req, res) => {
     ]
     const result1 = await client.query('SELECT jamsai_id, COUNT(jamsai_id) FROM submitted_codes GROUP BY jamsai_id');
 	const codes = result1.rows;
-    const jamsai_ids = codes.map(code => "'" + code.jamsai_id + "'");
-    const result2 = await client.query('SELECT * FROM members WHERE jamsai_id in (' + jamsai_ids.join(',') + ') ORDER BY jamsai_id');
-    const members = result2.rows;
-    const member_data = members.map(member => {
-        const code = codes.find(x => x.jamsai_id == member.jamsai_id);
-        const detail = JSON.parse(member.data);
-        return {
-            ...detail,
-            code_count: code ? code.count : 0,
-        }
-    });
     let rows = [];
-    for(let i in member_data) {
-        const item = member_data[i];
-        rows.push([
-            {
-                type: String,
-                value: item.jamsai_id
-            },
-            {
-                type: String,
-                value: (item.firstname + ' ' + item.lastname)
-            },
-            {
-                type: String,
-                value: item.mobile
-            },
-            {
-                type: String,
-                value: item.email
-            },
-            {
-                type: String,
-                value: item.code_count
-            },
-        ])
+    if(codes.length > 0) {
+        const jamsai_ids = codes.map(code => "'" + code.jamsai_id + "'");
+        const result2 = await client.query('SELECT * FROM members WHERE jamsai_id in (' + jamsai_ids.join(',') + ') ORDER BY jamsai_id');
+        const members = result2.rows;
+        const member_data = members.map(member => {
+            const code = codes.find(x => x.jamsai_id == member.jamsai_id);
+            const detail = JSON.parse(member.data);
+            return {
+                ...detail,
+                code_count: code ? code.count : 0,
+            }
+        });
+        for(let i in member_data) {
+            const item = member_data[i];
+            rows.push([
+                {
+                    type: String,
+                    value: item.jamsai_id
+                },
+                {
+                    type: String,
+                    value: (item.firstname + ' ' + item.lastname)
+                },
+                {
+                    type: String,
+                    value: item.mobile
+                },
+                {
+                    type: String,
+                    value: item.email
+                },
+                {
+                    type: String,
+                    value: item.code_count
+                },
+            ])
+        }
     }
     const data = [
         HEADER_ROW,
         ...rows
     ];
     const buffer = await writeXlsxFile(data, { buffer: true });
-    const fileName = 'tracking.xlsx';
-    const fileType = 'application/vnd.ms-excel';
-    res.writeHead(200, {
-    'Content-Disposition': `attachment; filename="${fileName}"`,
-    'Content-Type': fileType,
-    })
-    res.end(buffer);
+    // const fileName = 'tracking.xlsx';
+    // const fileType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    // res.writeHead(200, {
+    // 'Content-Disposition': `attachment; filename="${fileName}"`,
+    // 'Content-Type': fileType,
+    // })
+    // res.end(buffer);
+    res.send({ result: Buffer.from(buffer).toString('base64') })
+}
+const failSubmit = async (req, res) => {
+    try {
+        const { jamsai_id } = req.query;
+        if (jamsai_id) {
+            const now = new Date();
+            const today = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2)
+            const result = await client.query("SELECT COUNT(*) FROM fail_submit WHERE jamsai_id='" + jamsai_id + "' AND created_date >= '" + today + "';");
+            const count = result.rows.length > 0 ? result.rows[0].count : 0;
+            res.send({ count });
+        } else {
+            res.status(400).send({
+                isSuccess: false,
+                status_code: 400,
+                message: "An error occurred while getting fail submit",
+            });
+        }
+    } catch (err) {
+        console.log("Error failSubmit:", err);
+        res.status(400).send({
+            isSuccess: false,
+            status_code: 400,
+            message: "An error occurred while getting fail submit",
+        });
+   }
 }
 
 // #endregion
@@ -767,6 +815,7 @@ const getFuncs = {
     tracking,
     "report-export": reportExport,
     "tracking-export": trackingExport,
+    "fail-submit": failSubmit,
 }
 const postFunc = {
     login,
@@ -781,23 +830,20 @@ const postFunc = {
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(cors())
+
 app.get('/hello', (req, res) => {
     res.send('Hello World')
 });
-app.post('/init-codes', upload.single('file'), async (req, res) => {
+app.post('/init-codes', async (req, res) => {
     try {
-        const now = new Date();
-        await readXlsxFile(Buffer.from(req.file.buffer)).then(async (rows) => {
-            await prisma.codes.deleteMany({});
+        const { data } = req.body;
+        await readXlsxFile(Buffer.from(data, 'base64')).then(async (rows) => {
+            await client.query("DELETE FROM codes");
             const rmHead = rows.slice(1);
             const data = rmHead.map((item) => {
-                return {
-                    code: item && item.length > 0 ? item[0] : '',
-                    is_use: false,
-                    updated_date: now,
-                }
+                return "('" + (item && item.length > 0 ? item[0] : '') + "',FALSE,NOW())"
             })
-            await prisma.codes.createMany({ data });
+            await client.query("INSERT INTO codes (code,is_use,updated_date) VALUES " + data.join(','));
         })
         res.send({
             isSuccess: true,
@@ -813,26 +859,17 @@ app.post('/init-codes', upload.single('file'), async (req, res) => {
         });
    }
 });
-app.post('/report-import', upload.single('file'), async (req, res) => {
+app.post('/report-import', async (req, res) => {
     try {
-        const { file } = req;
-        if (file) {
-            await readXlsxFile(Buffer.from(file.buffer)).then(async (rows) => {
+        const { data } = req.body;
+        if (data) {
+            await readXlsxFile(Buffer.from(data, 'base64')).then(async (rows) => {
                 const data = rows.slice(1);
                 for(let item of data) {
-                    await prisma.send_addresses.updateMany({
-                        where: {
-                            jamsai_id: item[0],
-                            reward_no: item[4],
-                        },
-                        data: {
-                            status: item[6],
-                            tracking_url: item. length > 6 ? item[7] : '',
-                        }
-                    });
+                    await client.query("UPDATE send_addresses SET status='" + item[6] + "', tracking_url='" + (item. length > 6 ? item[7] : '') + "' WHERE jamsai_id='" + item[0] + "' AND reward_no=" + item[4]);
                 }
+                res.send("Success");
             })
-            res.redirect('/report');
         } else {
             res.status(400).send({
                 isSuccess: false,
@@ -841,7 +878,7 @@ app.post('/report-import', upload.single('file'), async (req, res) => {
             });
         }
     } catch (err) {
-        console.log("Error updateSendStatus:", err);
+        console.log("Error report-import:", err);
         res.status(400).send({
             isSuccess: false,
             status_code: 400,
@@ -860,6 +897,7 @@ app.post('/:path', async(req, res) => {
     const path = req.params.path;
     await postFunc[path](req, res);
 });
+
 // #endregion
 // app.listen(8088, ()=> {
 //     console.log('Start')
