@@ -97,7 +97,7 @@ const linkAccount = async (jamsai_id, token) => {
     try {
         const result = await axios({
             method: 'post',
-            url: process.env.JAMSAI_LINE_API_URL + '/line_api/link',
+            url: process.env.JAMSAI_LINE_API_URL + '/line_api/link/' + jamsai_id,
             headers: {
                 'Content-Type': `application/json`,
                 'Authorization': 'Bearer ' + token,
@@ -114,8 +114,8 @@ const linkAccount = async (jamsai_id, token) => {
 
 const checkLogin = async (req, res) => {
     try {
-        const { user, token } = req.body;
-        const result = await axios({
+        const { token } = req.body;
+        const user_result = await axios({
             method: 'get',
             url: process.env.JAMSAI_LINE_API_URL + '/line_api/users/me?including_wallet=true',
             headers: {
@@ -123,7 +123,42 @@ const checkLogin = async (req, res) => {
                 'Authorization': 'Bearer ' + token,
             },
         })
-        res.send(result.data)
+        
+        if (user_result && user_result.data) {
+            const { message, reference, data } = user_result.data
+            const { jamsai_id } = data;
+            const result4 = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
+            const total = result4.rows.length > 0 ? result4.rows[0].count : 0;
+            const result5 = await client.query("SELECT COUNT(*) FROM send_addresses WHERE jamsai_id='" + jamsai_id + "'");
+            const addresses = result5.rows.length > 0 ? result5.rows[0].count : 0;
+            const complete = Math.floor(total / 16);
+            const result6 = await client.query("SELECT COUNT(*) FROM members WHERE jamsai_id='" + jamsai_id + "'");
+            const member = result6.rows.length > 0 ? result6.rows[0].count : 0;
+            if (member && member > 0) {
+                await client.query("UPDATE members SET data='" + JSON.stringify(data) + "' WHERE jamsai_id='" + jamsai_id + "'");
+            } else {
+                await client.query("INSERT INTO members (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(data) + "')");
+            }
+            const result = {
+                ...data,
+                reference,
+                not_save_address: addresses < complete,
+            }
+            res.send({
+                isSuccess: message == "Success",
+                status_code: 200,
+                result,
+                message: "Success",
+            });
+            return;
+        } else {
+            res.status(400).send({
+                isSuccess: false,
+                status_code: 400,
+                message: "Login fail",
+            });
+            return;
+        }
     } catch (err) {
         const { config, request, response, ...error } = err;
         if (response) {
@@ -197,7 +232,7 @@ const login = async (req, res) => {
                 } else {
                     await client.query("INSERT INTO members (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(users[0]) + "')");
                 }
-                await linkAccount(jamsai_id, token);
+                if(token) await linkAccount(jamsai_id, token);
                 const result = {
                     ...users[0],
                     reference,
@@ -251,7 +286,7 @@ const login = async (req, res) => {
                 } else {
                     await client.query("INSERT INTO members (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(data) + "')");
                 }
-                await linkAccount(jamsai_id, token);
+                if(token) await linkAccount(jamsai_id, token);
                 const result = {
                     ...data,
                     reference,
