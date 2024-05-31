@@ -10,6 +10,7 @@ const { Pool } = require('pg');
 
 // const process = {
 //     env: {
+//         "ENVIRONMENT": "Development",
 //         "STAGE": "",
 //         "DB_USER": "kiosk",
 //         "DB_PASS": "D3vk10sk",
@@ -24,9 +25,14 @@ const { Pool } = require('pg');
 //         "JAMSAI_EMAIL_API_AUTHEN_URL": "https://uat-jamsai-staff.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
 //         "JAMSAI_EMAIL_API_CLIENT_ID": "6iji0et1gk4ie937jeg7q4ps55",
 //         "JAMSAI_EMAIL_API_CLIENT_SECRET": "1t8gq8hktecdbdjnorau1trpthsjldl1g8trcqge2848l13pflrp",
-//         "JAMSAI_LINE_API_URL": "https://kd15vees64.execute-api.ap-southeast-1.amazonaws.com/uat"
+//         "JAMSAI_LINE_API_URL": "https://kd15vees64.execute-api.ap-southeast-1.amazonaws.com/uat",
+//         "JAMSAI_REWARD_COUNT": 3,
+//         "JAMSAI_FAIL_COUNT": 3,
 //     }
 // }
+
+const reward_count = parseInt(process.env.JAMSAI_REWARD_COUNT ?? 16);
+const fail_count = parseInt(process.env.JAMSAI_FAIL_COUNT ?? 10);
 
 const dbConfig = {
 	user: process.env.DB_USER,
@@ -343,8 +349,13 @@ const submitCode = async (req, res) => {
         if (!master_codes || master_codes.length == 0) {
             const err_code = codes.map((code, index) => { return { index, code, is_error: true } })
             await client.query("INSERT INTO fail_submit (jamsai_id,created_date) VALUES ('" + jamsai_id + "',NOW())");
+            const now = new Date();
+            const today = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2)
+            const result_fail = await client.query("SELECT COUNT(*) FROM fail_submit WHERE jamsai_id='" + jamsai_id + "' AND created_date >= '" + today + "';");
+            const count = result_fail.rows.length > 0 ? result_fail.rows[0].count : 0;
             res.status(400).send({
                 data: err_code,
+                fail_count: count,
                 isSuccess: false,
                 status_code: 400,
                 message: "Get submit code fail",
@@ -353,13 +364,18 @@ const submitCode = async (req, res) => {
         }
         const fail_codes = codes.map((code, index) => { 
             const mcode = master_codes.find(x => x.code == code);
-            return { index, code, is_error: !mcode || mcode.is_use } 
+            return { index, code, is_error: !mcode || (mcode.is_use && process.env.ENVIRONMENT != 'Development') } 
         })
         const isAllPass = fail_codes.filter(x => x.is_error).length == 0;
         if (!isAllPass) {
             await client.query("INSERT INTO fail_submit (jamsai_id,created_date) VALUES ('" + jamsai_id + "',NOW())");
+            const now = new Date();
+            const today = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2)
+            const result_fail = await client.query("SELECT COUNT(*) FROM fail_submit WHERE jamsai_id='" + jamsai_id + "' AND created_date >= '" + today + "';");
+            const count = result_fail.rows.length > 0 ? result_fail.rows[0].count : 0;
             res.status(400).send({
                 data: fail_codes,
+                fail_count: count,
                 isSuccess: false,
                 status_code: 400,
                 message: "Get submit code fail",
@@ -379,16 +395,16 @@ const submitCode = async (req, res) => {
             await client.query("UPDATE codes SET is_use=TRUE,updated_date=NOW() WHERE code in (" + updatedCodes.join(',') + ")");
             await client.query("DELETE FROM fail_submit WHERE jamsai_id='" + jamsai_id + "'");
             const total = prevCount + codes.length;
-            const prevComplete = Math.floor(prevCount / 16);
-            const complete = Math.floor(total / 16);
-            const collected = total - (complete * 16);
+            const prevComplete = Math.floor(prevCount / reward_count);
+            const complete = Math.floor(total / reward_count);
+            const collected = total - (complete * reward_count);
             res.send({
                 isSuccess: true,
                 result: {
-                    is_first: prevCount < 16 && total >= 16,
+                    is_first: prevCount < reward_count && total >= reward_count,
                     is_complete: complete > prevComplete,
                     total_reward: complete,
-                    collected: collected > 0 ? collected : 16,
+                    collected: collected > 0 ? collected : reward_count,
                 },
                 status_code: 200,
                 message: "Success",
@@ -823,7 +839,7 @@ const failSubmit = async (req, res) => {
             const today = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2)
             const result = await client.query("SELECT COUNT(*) FROM fail_submit WHERE jamsai_id='" + jamsai_id + "' AND created_date >= '" + today + "';");
             const count = result.rows.length > 0 ? result.rows[0].count : 0;
-            res.send({ count });
+            res.send({ count, is_penalty: count >= fail_count });
         } else {
             res.status(400).send({
                 isSuccess: false,
