@@ -26,13 +26,21 @@ const { Pool } = require('pg');
 //         "JAMSAI_EMAIL_API_CLIENT_ID": "6iji0et1gk4ie937jeg7q4ps55",
 //         "JAMSAI_EMAIL_API_CLIENT_SECRET": "1t8gq8hktecdbdjnorau1trpthsjldl1g8trcqge2848l13pflrp",
 //         "JAMSAI_LINE_API_URL": "https://kd15vees64.execute-api.ap-southeast-1.amazonaws.com/uat",
-//         "JAMSAI_REWARD_COUNT": 3,
+//         "JAMSAI_REWARD_COUNT": 16,
 //         "JAMSAI_FAIL_COUNT": 3,
+//         "JAMSAI_STAGE1": "1,7",
+//         "JAMSAI_STAGE2": "8,9",
+//         "JAMSAI_STAGE3": "10,13",
+//         "JAMSAI_STAGE4": "14,15"
 //     }
 // }
 
 const reward_count = parseInt(process.env.JAMSAI_REWARD_COUNT ?? 16);
 const fail_count = parseInt(process.env.JAMSAI_FAIL_COUNT ?? 10);
+const stage1_con = (process.env.JAMSAI_STAGE1 ?? '1,7').split(',').map(i => parseInt(i));
+const stage2_con = (process.env.JAMSAI_STAGE2 ?? '8,9').split(',').map(i => parseInt(i));
+const stage3_con = (process.env.JAMSAI_STAGE3 ?? '10,13').split(',').map(i => parseInt(i));
+const stage4_con = (process.env.JAMSAI_STAGE4 ?? '14,15').split(',').map(i => parseInt(i));
 
 const dbConfig = {
 	user: process.env.DB_USER,
@@ -134,12 +142,12 @@ const checkLogin = async (req, res) => {
             const { message, reference, data } = user_result.data
             const { jamsai_id } = data;
             const result4 = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
-            const total = result4.rows.length > 0 ? result4.rows[0].count : 0;
+            const total = parseInt(result4.rows.length > 0 ? result4.rows[0].count : 0);
             const result5 = await client.query("SELECT COUNT(*) FROM send_addresses WHERE jamsai_id='" + jamsai_id + "'");
-            const addresses = result5.rows.length > 0 ? result5.rows[0].count : 0;
+            const addresses = parseInt(result5.rows.length > 0 ? result5.rows[0].count : 0);
             const complete = Math.floor(total / 16);
             const result6 = await client.query("SELECT COUNT(*) FROM members WHERE jamsai_id='" + jamsai_id + "'");
-            const member = result6.rows.length > 0 ? result6.rows[0].count : 0;
+            const member = parseInt(result6.rows.length > 0 ? result6.rows[0].count : 0);
             if (member && member > 0) {
                 await client.query("UPDATE members SET data='" + JSON.stringify(data) + "' WHERE jamsai_id='" + jamsai_id + "'");
             } else {
@@ -227,12 +235,12 @@ const login = async (req, res) => {
                 }
                 const { jamsai_id } = users[0];
                 const result1 = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
-                const total = result1.rows.length > 0 ? result1.rows[0].count : 0;
+                const total = parseInt(result1.rows.length > 0 ? result1.rows[0].count : 0);
                 const result2 = await client.query("SELECT COUNT(*) FROM send_addresses WHERE jamsai_id='" + jamsai_id + "'");
-                const addresses = result2.rows.length > 0 ? result2.rows[0].count : 0;
+                const addresses = parseInt(result2.rows.length > 0 ? result2.rows[0].count : 0);
                 const complete = Math.floor(total / 16);
                 const result3 = await client.query("SELECT COUNT(*) FROM members WHERE jamsai_id='" + jamsai_id + "'");
-                const member = result3.rows.length > 0 ? result3.rows[0].count : 0;
+                const member = parseInt(result3.rows.length > 0 ? result3.rows[0].count : 0);
                 if (member && member > 0) {
                     await client.query("UPDATE members SET data='" + JSON.stringify(users[0]) + "' WHERE jamsai_id='" + jamsai_id + "'");
                 } else {
@@ -281,12 +289,12 @@ const login = async (req, res) => {
                 const { message, reference, data } = user_result.data
                 const { jamsai_id } = data;
                 const result4 = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
-                const total = result4.rows.length > 0 ? result4.rows[0].count : 0;
+                const total = parseInt(result4.rows.length > 0 ? result4.rows[0].count : 0);
                 const result5 = await client.query("SELECT COUNT(*) FROM send_addresses WHERE jamsai_id='" + jamsai_id + "'");
-                const addresses = result5.rows.length > 0 ? result5.rows[0].count : 0;
+                const addresses = parseInt(result5.rows.length > 0 ? result5.rows[0].count : 0);
                 const complete = Math.floor(total / 16);
                 const result6 = await client.query("SELECT COUNT(*) FROM members WHERE jamsai_id='" + jamsai_id + "'");
-                const member = result6.rows.length > 0 ? result6.rows[0].count : 0;
+                const member = parseInt(result6.rows.length > 0 ? result6.rows[0].count : 0);
                 if (member && member > 0) {
                     await client.query("UPDATE members SET data='" + JSON.stringify(data) + "' WHERE jamsai_id='" + jamsai_id + "'");
                 } else {
@@ -352,7 +360,7 @@ const submitCode = async (req, res) => {
             const now = new Date();
             const today = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2)
             const result_fail = await client.query("SELECT COUNT(*) FROM fail_submit WHERE jamsai_id='" + jamsai_id + "' AND created_date >= '" + today + "';");
-            const count = result_fail.rows.length > 0 ? result_fail.rows[0].count : 0;
+            const count = parseInt(result_fail.rows.length > 0 ? result_fail.rows[0].count : 0);
             res.status(400).send({
                 data: err_code,
                 fail_count: count,
@@ -372,7 +380,7 @@ const submitCode = async (req, res) => {
             const now = new Date();
             const today = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2)
             const result_fail = await client.query("SELECT COUNT(*) FROM fail_submit WHERE jamsai_id='" + jamsai_id + "' AND created_date >= '" + today + "';");
-            const count = result_fail.rows.length > 0 ? result_fail.rows[0].count : 0;
+            const count = parseInt(result_fail.rows.length > 0 ? result_fail.rows[0].count : 0);
             res.status(400).send({
                 data: fail_codes,
                 fail_count: count,
@@ -383,7 +391,7 @@ const submitCode = async (req, res) => {
             return;
         } else {
             const result1 = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
-            const prevCount = result1.rows.length > 0 ? result1.rows[0].count : 0;
+            const prevCount = parseInt(result1.rows.length > 0 ? result1.rows[0].count : 0);
             const queries = [];
             master_codes.map((code) => {
                 queries.push(client.query("INSERT INTO submitted_codes (code_id,jamsai_id,created_date) VALUES ('" + code.id + "','" + jamsai_id + "',NOW())"));
@@ -397,12 +405,21 @@ const submitCode = async (req, res) => {
             const total = prevCount + codes.length;
             const prevComplete = Math.floor(prevCount / reward_count);
             const complete = Math.floor(total / reward_count);
+            const prevCollected = prevCount - (prevComplete * reward_count);
             const collected = total - (complete * reward_count);
+            const pass_stage4 = (prevCollected < stage4_con[0] && collected >= stage4_con[0] && collected <= stage4_con[1]);
+            const pass_stage3 = (prevCollected < stage3_con[0] && collected >= stage3_con[0] && collected <= stage3_con[1] && !pass_stage4);
+            const pass_stage2 = (prevCollected < stage2_con[0] && collected >= stage2_con[0] && collected <= stage2_con[1] && !pass_stage4 && !pass_stage3);
+            const pass_stage1 = (prevCollected < stage1_con[0] && collected >= stage1_con[0] && collected <= stage1_con[1] && !pass_stage4 && !pass_stage3 && !pass_stage2);
             res.send({
                 isSuccess: true,
                 result: {
                     is_first: prevCount < reward_count && total >= reward_count,
                     is_complete: complete > prevComplete,
+                    pass_stage1,
+                    pass_stage2,
+                    pass_stage3,
+                    pass_stage4,
                     total_reward: complete,
                     collected: collected > 0 ? collected : reward_count,
                 },
@@ -425,7 +442,7 @@ const getSummary = async (req, res) => {
     try {
         const { jamsai_id } = req.query;
         const result = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
-        const total = result.rows.length > 0 ? result.rows[0].count : 0;
+        const total = parseInt(result.rows.length > 0 ? result.rows[0].count : 0);
         const complete = Math.floor(total / 16);
         const collected = total - (complete * 16);
         res.send({
@@ -476,7 +493,7 @@ const getSendAddress = async (req, res) => {
 const saveSendAddress = async (req, res) => {
     try {
         const { id, jamsai_id, name, mobile, house_no, village_no, road, sub_district, district, province, postalcode } = req.body;
-        const result1 = await client.query("SELECT TOP(1) reward_no FROM send_addresses WHERE jamsai_id='" + jamsai_id + "' ORDER BY reward_no DESC");
+        const result1 = await client.query("SELECT reward_no FROM send_addresses WHERE jamsai_id='" + jamsai_id + "' ORDER BY reward_no DESC");
         const last = result1.rows.length > 0 ? result1.rows[0] : null;
         const reward_no = last ? last.reward_no + 1 : 1;
         if (id) {
@@ -504,8 +521,9 @@ const saveSendAddress = async (req, res) => {
                 const { data } = user_result.data
                 email = data.email;
             }
+            const status = 'ได้รับข้อมูล';
             const query = "INSERT INTO send_addresses (jamsai_id, name, mobile, house_no, village_no, road, sub_district, district, province, postalcode, reward_no, created_date, updated_date, status, email) VALUES "
-            + "('" + jamsai_id + "','" + name + "','" + mobile + "','" + house_no + "','" + village_no + "','" + road + "','" + sub_district + "','" + district + "','" + province + "','" + postalcode + "'," + reward_no + ",NOW(),NOW(),'" + status + "')";
+            + "('" + jamsai_id + "','" + name + "','" + mobile + "','" + house_no + "','" + village_no + "','" + road + "','" + sub_district + "','" + district + "','" + province + "','" + postalcode + "'," + reward_no + ",NOW(),NOW(),'" + status + "','" + email + "')";
             await client.query(query);
         }
         res.send({
@@ -724,7 +742,7 @@ const tracking = async (req, res) => {
             const detail = JSON.parse(member.data);
             return {
                 ...detail,
-                code_count: code ? code.count : 0,
+                code_count: parseInt(code ? code.count : 0),
             }
         })
         for(let i in data) {
@@ -788,7 +806,7 @@ const trackingExport = async (req, res) => {
             const detail = JSON.parse(member.data);
             return {
                 ...detail,
-                code_count: code ? code.count : 0,
+                code_count: parseInt(code ? code.count : 0),
             }
         });
         for(let i in member_data) {
@@ -838,7 +856,7 @@ const failSubmit = async (req, res) => {
             const now = new Date();
             const today = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2)
             const result = await client.query("SELECT COUNT(*) FROM fail_submit WHERE jamsai_id='" + jamsai_id + "' AND created_date >= '" + today + "';");
-            const count = result.rows.length > 0 ? result.rows[0].count : 0;
+            const count = parseInt(result.rows.length > 0 ? result.rows[0].count : 0);
             res.send({ count, is_penalty: count >= fail_count });
         } else {
             res.status(400).send({
