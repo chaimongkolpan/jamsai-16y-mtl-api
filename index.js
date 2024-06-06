@@ -34,6 +34,32 @@ const { Pool } = require('pg');
 //         "JAMSAI_STAGE4": "14,15"
 //     }
 // }
+// const process = {
+//     env: {
+//         "ENVIRONMENT": "Production",
+//         "STAGE": "",
+//         "DB_USER": "kiosk",
+//         "DB_PASS": "D3vk10sk",
+//         "DB_HOST": "dev-cms-share-postgres-cluster.cluster-cizjvrn1bqjx.ap-southeast-1.rds.amazonaws.com",
+//         "DB_PORT": "5432",
+//         "DB_NAME": "uat_kiosk_db",
+//         "JAMSAI_API_URL": "https://8y4h8x7xs3.execute-api.ap-southeast-1.amazonaws.com/prod",
+//         "JAMSAI_API_AUTHEN_URL": "https://jsauth.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
+//         "JAMSAI_API_CLIENT_ID": "djpouc9pmk0dldi9i3oprrjm1",
+//         "JAMSAI_API_CLIENT_SECRET": "8vsn9uprs8sh16ar7md09oj2rmlsqno52vldnq68001q7jfv8tk",
+//         "JAMSAI_EMAIL_API_URL": "https://165jxdcmhj.execute-api.ap-southeast-1.amazonaws.com/uat",
+//         "JAMSAI_EMAIL_API_AUTHEN_URL": "https://jamsai-staff.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
+//         "JAMSAI_EMAIL_API_CLIENT_ID": "pl4culmserpc4b6sdi7k5bqum",
+//         "JAMSAI_EMAIL_API_CLIENT_SECRET": "jncta0etv6an9qpqgln1kd9hkl521lfl4op43u0jg4eppae15s",
+//         "JAMSAI_LINE_API_URL": "https://8y4h8x7xs3.execute-api.ap-southeast-1.amazonaws.com/prod",
+//         "JAMSAI_REWARD_COUNT": 16,
+//         "JAMSAI_FAIL_COUNT": 10,
+//         "JAMSAI_STAGE1": "1,7",
+//         "JAMSAI_STAGE2": "8,9",
+//         "JAMSAI_STAGE3": "10,13",
+//         "JAMSAI_STAGE4": "14,15"
+//     }
+// }
 
 const reward_count = parseInt(process.env.JAMSAI_REWARD_COUNT ?? 16);
 const fail_count = parseInt(process.env.JAMSAI_FAIL_COUNT ?? 10);
@@ -118,17 +144,21 @@ const linkAccount = async (jamsai_id, token) => {
             },
             data: { jamsai_id }
         })
-        return true;
+        return result;
     } catch (err) {
         console.log("Error linkAccount:", err);
-        return false
+        return err
     }
+}
+const saveLog = async(jamsai_id, log) => {
+    await client.query("INSERT INTO logs (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(log) + "')");
 }
 // #endregion
 
 const checkLogin = async (req, res) => {
     try {
         const { token } = req.body;
+        // await saveLog('', { fn_name: 'checkLogin', data: { token } });
         const user_result = await axios({
             method: 'get',
             url: process.env.JAMSAI_LINE_API_URL + '/line_api/users/me?including_wallet=true',
@@ -153,6 +183,7 @@ const checkLogin = async (req, res) => {
             } else {
                 await client.query("INSERT INTO members (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(data) + "')");
             }
+            // await saveLog(jamsai_id, { fn_name: 'checkLogin', data: { token, user_result } });
             const result = {
                 ...data,
                 reference,
@@ -246,10 +277,12 @@ const login = async (req, res) => {
                 } else {
                     await client.query("INSERT INTO members (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(users[0]) + "')");
                 }
-                if(token) await linkAccount(jamsai_id, token);
+                let link_result = {};
+                if(token) link_result = await linkAccount(jamsai_id, token);
+                // await saveLog(jamsai_id, { fn_name: 'login', method: 'email', data: { token, link_result } });
                 const result = {
                     ...users[0],
-                    reference,
+                    reference: (link_result && link_result.data) ? link_result.data.reference : reference,
                     not_save_address: addresses < complete,
                 }
                 res.send({
@@ -300,10 +333,12 @@ const login = async (req, res) => {
                 } else {
                     await client.query("INSERT INTO members (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(data) + "')");
                 }
-                if(token) await linkAccount(jamsai_id, token);
+                let link_result = {};
+                if(token) link_result = await linkAccount(jamsai_id, token);
+                // await saveLog(jamsai_id, { fn_name: 'login', method: 'jamsai_id', data: { token, link_result } });
                 const result = {
                     ...data,
-                    reference,
+                    reference: (link_result && link_result.data) ? link_result.data.reference : reference,
                     not_save_address: addresses < complete,
                 }
                 res.send({
@@ -335,6 +370,7 @@ const login = async (req, res) => {
       res.status(400).send({
         isSuccess: false,
         status_code: 400,
+        error: err,
         message: "An error occurred while Login",
       });
       return;
@@ -421,7 +457,8 @@ const submitCode = async (req, res) => {
                     pass_stage3,
                     pass_stage4,
                     total_reward: complete,
-                    collected: collected > 0 ? collected : reward_count,
+                    // collected: collected > 0 ? collected : reward_count,
+                    collected: collected,
                 },
                 status_code: 200,
                 message: "Success",
@@ -443,13 +480,14 @@ const getSummary = async (req, res) => {
         const { jamsai_id } = req.query;
         const result = await client.query("SELECT COUNT(*) FROM submitted_codes WHERE jamsai_id='" + jamsai_id + "'");
         const total = parseInt(result.rows.length > 0 ? result.rows[0].count : 0);
-        const complete = Math.floor(total / 16);
-        const collected = total - (complete * 16);
+        const complete = Math.floor(total / reward_count);
+        const collected = total - (complete * reward_count);
         res.send({
             isSuccess: true,
             result: {
                 total_reward: complete,
-                collected: collected > 0 ? collected : total == 0 ? 0 : 16,
+                // collected: collected > 0 ? collected : total == 0 ? 0 : 16,
+                collected: collected,
             },
             status_code: 200,
             message: "Success",
@@ -460,6 +498,7 @@ const getSummary = async (req, res) => {
         res.status(400).send({
             isSuccess: false,
             status_code: 400,
+            error: err,
             message: "An error occurred while getting summary",
         });
    }
@@ -896,8 +935,8 @@ const postFunc = {
 }
 
 // #region Routers
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false, limit: '50mb' }));
+app.use(bodyParser.json({limit: '50mb', type: 'application/json'}));
 app.use(cors())
 
 app.get('/hello', (req, res) => {
