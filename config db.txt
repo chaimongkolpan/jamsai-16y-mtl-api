@@ -1,0 +1,11 @@
+DB Host : jamsai-lake-postgres-cluster.cluster-crt5d3qtvdho.ap-southeast-1.rds.amazonaws.com
+DB Name : jamsai_kiosk_db
+DB User : kiosk
+DB Password : D3vk10sk
+
+
+DB_HOST : dev-cms-share-postgres-cluster.cluster-cizjvrn1bqjx.ap-southeast-1.rds.amazonaws.com
+DB_PORT : 5432
+DB_NAME : uat_kiosk_db
+DB_USER : kiosk
+DB_PASS : D3vk10sk

@@ -1,0 +1,137 @@
+CREATE SEQUENCE public.codes_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+CREATE SEQUENCE public.codes_id_seq1
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+CREATE SEQUENCE public.fail_submit_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+CREATE SEQUENCE public.fail_submit_id_seq1
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+CREATE SEQUENCE public.members_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+CREATE SEQUENCE public.members_id_seq1
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+CREATE SEQUENCE public.send_addresses_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+CREATE SEQUENCE public.send_addresses_id_seq1
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+CREATE SEQUENCE public.submitted_codes_id_seq
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+CREATE SEQUENCE public.submitted_codes_id_seq1
+	INCREMENT BY 1
+	MINVALUE 1
+	MAXVALUE 9223372036854775807
+	START 1
+	CACHE 1
+	NO CYCLE;
+
+CREATE TABLE public.codes (
+	id int8 NOT NULL GENERATED ALWAYS AS IDENTITY( INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 CACHE 1 NO CYCLE),
+	code varchar NULL,
+	is_use bool NULL,
+	updated_date timestamp NULL,
+	CONSTRAINT codes_pk PRIMARY KEY (id)
+);
+
+CREATE TABLE public.fail_submit (
+	id int8 NOT NULL GENERATED ALWAYS AS IDENTITY( INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 CACHE 1 NO CYCLE),
+	jamsai_id varchar NULL,
+	created_date timestamp NULL,
+	CONSTRAINT fail_submit_pk PRIMARY KEY (id)
+);
+
+CREATE TABLE public.members (
+	id int8 NOT NULL GENERATED ALWAYS AS IDENTITY( INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 CACHE 1 NO CYCLE),
+	jamsai_id varchar NULL,
+	"data" varchar NULL,
+	CONSTRAINT members_pk PRIMARY KEY (id)
+);
+
+CREATE TABLE public.send_addresses (
+	id int8 NOT NULL GENERATED ALWAYS AS IDENTITY( INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 CACHE 1 NO CYCLE),
+	jamsai_id varchar NULL,
+	"name" varchar NULL,
+	mobile varchar NULL,
+	house_no varchar NULL,
+	village_no varchar NULL,
+	road varchar NULL,
+	sub_district varchar NULL,
+	district varchar NULL,
+	province varchar NULL,
+	postalcode varchar NULL,
+	reward_no int4 NULL,
+	created_date timestamp NULL,
+	updated_date timestamp NULL,
+	status varchar NULL,
+	tracking_url varchar NULL,
+	email varchar NULL,
+	CONSTRAINT send_addresses_pk PRIMARY KEY (id)
+);
+
+CREATE TABLE public.submitted_codes (
+	id int8 NOT NULL GENERATED ALWAYS AS IDENTITY( INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 CACHE 1 NO CYCLE),
+	code_id int8 NULL,
+	jamsai_id varchar NULL,
+	created_date timestamp NULL,
+	CONSTRAINT submitted_codes_pk PRIMARY KEY (id)
+);
+
+CREATE TABLE public.logs (
+	id int8 NOT NULL GENERATED ALWAYS AS IDENTITY,
+	jamsai_id varchar NULL,
+	"data" varchar NULL,
+	CONSTRAINT logs_pk PRIMARY KEY (id)
+);
