@@ -31,7 +31,8 @@ const { Pool } = require('pg');
 //         "JAMSAI_STAGE1": "1,7",
 //         "JAMSAI_STAGE2": "8,9",
 //         "JAMSAI_STAGE3": "10,13",
-//         "JAMSAI_STAGE4": "14,15"
+//         "JAMSAI_STAGE4": "14,15",
+//         "JAMSAI_PAGE_SIZE": 1000
 //     }
 // }
 // const process = {
@@ -57,7 +58,8 @@ const { Pool } = require('pg');
 //         "JAMSAI_STAGE1": "1,7",
 //         "JAMSAI_STAGE2": "8,9",
 //         "JAMSAI_STAGE3": "10,13",
-//         "JAMSAI_STAGE4": "14,15"
+//         "JAMSAI_STAGE4": "14,15",
+//         "JAMSAI_PAGE_SIZE": 1000
 //     }
 // }
 
@@ -67,6 +69,7 @@ const stage1_con = (process.env.JAMSAI_STAGE1 ?? '1,7').split(',').map(i => pars
 const stage2_con = (process.env.JAMSAI_STAGE2 ?? '8,9').split(',').map(i => parseInt(i));
 const stage3_con = (process.env.JAMSAI_STAGE3 ?? '10,13').split(',').map(i => parseInt(i));
 const stage4_con = (process.env.JAMSAI_STAGE4 ?? '14,15').split(',').map(i => parseInt(i));
+const page_size = parseInt(process.env.JAMSAI_PAGE_SIZE ?? 1000);
 
 const dbConfig = {
 	user: process.env.DB_USER,
@@ -152,6 +155,9 @@ const linkAccount = async (jamsai_id, token) => {
 }
 const saveLog = async(jamsai_id, log) => {
     await client.query("INSERT INTO logs (jamsai_id,data) VALUES ('" + jamsai_id + "','" + JSON.stringify(log) + "')");
+}
+function numberWithCommas(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 // #endregion
 
@@ -639,33 +645,34 @@ const report = async (req, res) => {
         + address(item) + '</td><th>' 
         + item.status + '</th><td>' 
         + '<form method="post" action="' + process.env.STAGE + '/update-address-status" style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 0; row-gap: 16px;"><input name="id" type="hidden" value="' + item.id 
-        + '"/><select name="status" style="width: 100%; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;"><option' + (item.status == 'ได้รับข้อมูล' ? ' selected' : '')
+        + '"/><select name="status" style="width: 100%; height: 30px; border-radius: 8px; border: 1px solid #ccc; padding: 4px 8px;"><option' + (item.status == 'ได้รับข้อมูล' ? ' selected' : '')
         + '>ได้รับข้อมูล</option><option' + (item.status == 'เตรียมจัดส่ง' ? ' selected' : '')
         + '>เตรียมจัดส่ง</option><option' + (item.status == 'จัดส่งแล้ว' ? ' selected' : '')
         + '>จัดส่งแล้ว</option></select><input type="text" name="tracking_url" value="'
-        + (item.tracking_url && item.tracking_url != 'null' ? item.tracking_url : '') + '" placeholder="Tracking url" style="width: 100%; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;"/><button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff;">บันทึก</button></form></td></tr>';
+        + (item.tracking_url && item.tracking_url != 'null' ? item.tracking_url : '') + '" placeholder="Tracking url" style="width: 100%; height: 30px; border-radius: 8px; border: 1px solid #ccc; padding: 4px 8px;"/><button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff;">บันทึก</button></form></td></tr>';
         rows += row;
     }
     const table = '<table style="width: 100%;"><tr><th>#</th><th>Jamsai ID</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>Email</th><th>Reward no.</th><th>ที่อยู่จัดส่ง</th><th>สถานะ</th><th>Action</th></tr>' + rows + '</table>';
     const html = '<html><head><title>16ปี แห่งความรัก - Report</title><style> th,td { border-bottom: 1px solid #ddd; padding: 8px 16px; } h4 { width: 150px; text-align: right; }</style></head><body>'
     + '<div style="width: 100%; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 500px;">'
-    + '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 500px; width: 80%; margin-left: auto; margin-right: auto;border: 1px solid #ddd;">'
+    + '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 500px; width: 80%; margin-left: auto; margin-right: auto;border: 1px solid #ccc;">'
     + '<h1 style="margin: 40px auto 24px auto;">Jamsai 16 ปีแห่งความรัก Report</h1>'
     + '<div style="width: 100%; border-bottom: 1px solid #ddd;"><button style="border-radius: 8px 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #E9E2ED; border-bottom: none;">Report</button>'
-    + '<button style="border-radius: 0 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-left: none;" onclick="window.location.href=\'' + process.env.STAGE + '/tracking\'">Tracking Status</button></div>'
+    + '<button style="border-radius: 0 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-left: none;" onclick="window.location.href=\'' + process.env.STAGE + '/tracking\'">Tracking Status</button>'
+    + '<button style="border-radius: 0 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-left: none;" onclick="window.location.href=\'' + process.env.STAGE + '/codes\'">Codes</button></div>'
     + '<div style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end; align-items: center;">'
     + '<input id="upload-file" type="file" name="file" style="width: 250px; padding: 8px; border: 1px solid #e0e0e0;" />'
     + '<button id="import" type="button" style="border-radius: 10px; border: 1px solid #CD6A39; padding: 8px 32px; font-size: 16px; background-color: #E2895D; color: #fff; cursor: pointer;">Import</button></div>'
     + '<div style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
     + '<button id="export" type="button" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff; cursor: pointer;">Export</button></div>'
     + '<form method="get" action="' + process.env.STAGE + '/report" style="margin-bottom: 24px; display: flex; align-items: center;"><h4>ค้นหา :</h4>&nbsp;&nbsp;'
-    + '<select name="search" style="width: 150px; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;"><option' + (!search || search == 'ทั้งหมด' ? ' selected' : '')
+    + '<select name="search" style="width: 150px; height: 30px; border-radius: 8px; border: 1px solid #ccc; padding: 4px 8px;"><option' + (!search || search == 'ทั้งหมด' ? ' selected' : '')
     + '>ทั้งหมด</option><option' + (search == 'ได้รับข้อมูล' ? ' selected' : '')
     + '>ได้รับข้อมูล</option><option' + (search == 'เตรียมจัดส่ง' ? ' selected' : '')
     + '>เตรียมจัดส่ง</option><option' + (search == 'จัดส่งแล้ว' ? ' selected' : '')
-    + '>จัดส่งแล้ว</option></select>&nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" style="border-radius: 10px; border: 1px solid #ddd; padding: 8px 32px; font-size: 16px; background-color: #E9E2ED; color: #000;">ค้นหา</button></form>'
+    + '>จัดส่งแล้ว</option></select>&nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" style="border-radius: 10px; border: 1px solid #ccc; padding: 8px 32px; font-size: 16px; background-color: #E9E2ED; color: #000;">ค้นหา</button></form>'
     + '<form method="post" action="' + process.env.STAGE + '/update-address-all" style="margin-bottom: 24px; display: flex; align-items: center;"><h4>เปลี่ยนสถานะ :</h4>&nbsp;&nbsp;'
-    + '<select name="status" style="width: 150px; height: 30px; border-radius: 8px; border: 1px solid #ddd; padding: 4px 8px;">' 
+    + '<select name="status" style="width: 150px; height: 30px; border-radius: 8px; border: 1px solid #ccc; padding: 4px 8px;">' 
     + '<option>ได้รับข้อมูล</option><option>เตรียมจัดส่ง</option><option>จัดส่งแล้ว</option>' 
     + '</select>&nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #000;">บันทึก</button></form>'
     + table + '</div></div></body>'
@@ -798,10 +805,11 @@ const tracking = async (req, res) => {
     const table = '<table style="width: 100%;"><tr><th>#</th><th>Jamsai ID</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>Email</th><th>จำนวน Code</th></tr>' + rows + '</table>';
     const html = '<html><head><title>16ปี แห่งความรัก - Tracking</title><style> th,td { border-bottom: 1px solid #ddd; padding: 8px 16px; } h4 { width: 150px; text-align: right; }</style></head><body>'
     + '<div style="width: 100%; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 500px;">'
-    + '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 500px; width: 80%; margin-left: auto; margin-right: auto;border: 1px solid #ddd;">'
+    + '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 500px; width: 80%; margin-left: auto; margin-right: auto;border: 1px solid #ccc;">'
     + '<h1 style="margin: 40px auto 24px auto;">Jamsai 16 ปีแห่งความรัก Tracking</h1>'
     + '<div style="width: 100%; border-bottom: 1px solid #ddd;"><button style="border-radius: 8px 0 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-right: none;" onclick="window.location.href=\'' + process.env.STAGE + '/report\'">Report</button>'
-    + '<button style="border-radius: 8px 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #E9E2ED; border-bottom: none;">Tracking Status</button></div>'
+    + '<button style="border-radius: 8px 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #E9E2ED; border-bottom: none;">Tracking Status</button>'
+    + '<button style="border-radius: 0 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-left: none;" onclick="window.location.href=\'' + process.env.STAGE + '/codes\'">Codes</button></div>'
     + '<div style="width: 100%; margin-bottom: 24px; display: flex; justify-content: flex-end;">'
     + '<button id="export" type="button" style="border-radius: 10px; border: 1px solid #6ACD39; padding: 8px 32px; font-size: 16px; background-color: #89E25D; color: #fff; cursor: pointer;">Export</button></div>'
     + table + '</div></div></body>'
@@ -913,7 +921,48 @@ const failSubmit = async (req, res) => {
         });
    }
 }
-
+const codes = async (req, res) => {
+    const { page, search, status } = req.query;
+    const result1 = await client.query("SELECT code,is_use FROM codes WHERE code LIKE '%" + (search ?? "") + "%' " + (status ? ("AND is_use=" + status) : "") + " LIMIT " + page_size + " OFFSET " + ((parseInt(page ?? 1) - 1) * page_size));
+	const codes = result1.rows;
+    const result2 = await client.query("SELECT is_use,COUNT(code) FROM codes GROUP BY is_use ORDER BY is_use");
+	const codes_use_count = numberWithCommas(parseInt(result2.rows.length > 1 ? result2.rows[1].count : 0));
+	const codes_notuse_count = numberWithCommas(parseInt(result2.rows.length > 1 ? result2.rows[0].count : 0));
+	const codes_count = numberWithCommas(parseInt(result2.rows.length > 1 ? result2.rows[0].count : 0) + parseInt(result2.rows.length > 1 ? result2.rows[1].count : 0));
+    const result3 = await client.query("SELECT COUNT(code) FROM codes WHERE code LIKE '%" + (search ?? "") + "%' " + (status ? ("AND is_use=" + status) : ""));
+	const codes_select_count = parseInt(result3.rows.length > 0 ? result3.rows[0].count : 0);
+    let rows = '';
+    if(codes.length > 0) {
+        for(let i in codes) {
+            const item = codes[i];
+            const row = '<tr style="background-color:' + (item.is_use ? '#9D1210' : '#349D10') + ';"><td style="text-align: center; padding: 8px 0;">' + ((parseInt(i) + 1) + ((parseInt(page ?? 1) - 1) * page_size)) + '</td><td>' 
+            + item.code + '</td><td style="text-align: center; padding: 8px 0;">' 
+            + (item.is_use ? 'ถูกใช้ไปแล้ว' : 'ยังไม่ถูกใช้') + '</td></tr>'
+            rows += row;
+        }
+    }
+    const table = '<table style="width: 100%;"><tr><th>#</th><th>Code</th><th>สถานะ</th></tr>' + rows + '</table>';
+    const html = '<html><head><title>16ปี แห่งความรัก - Codes</title><style> th,td { border-bottom: 1px solid #ddd; padding: 8px 16px; } h4 { width: 150px; text-align: right; }</style></head><body>'
+    + '<div style="width: 100%; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 500px;">'
+    + '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 500px; width: 80%; margin-left: auto; margin-right: auto;border: 1px solid #ccc;">'
+    + '<h1 style="margin: 40px auto 24px auto;">Jamsai 16 ปีแห่งความรัก Report</h1>'
+    + '<div style="width: 100%; border-bottom: 1px solid #ddd;"><button style="border-radius: 8px 0 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-right: none;" onclick="window.location.href=\'' + process.env.STAGE + '/report\'">Report</button>'
+    + '<button style="border-radius: 8px 0 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #fff; border-right: none;" onclick="window.location.href=\'' + process.env.STAGE + '/tracking\'">Tracking Status</button>'
+    + '<button style="border-radius: 8px 8px 0 0; width: 150px; height: 40px; cursor: pointer; background-color: #E9E2ED; border-bottom: none;">Codes</button></div>'
+    + '<form method="get" action="' + process.env.STAGE + '/codes" style="margin-bottom: 16px; display: flex; align-items: center;"><h4>ค้นหา :</h4>&nbsp;&nbsp;<input type="text" style="width: 200px;height: 30px; border-radius: 8px; border: 1px solid #ccc; padding: 4px 8px;" name="search" value="' + (search ?? '') + '"  />&nbsp;&nbsp;'
+    + '<select name="status" style="width: 150px; height: 30px; border-radius: 8px; border: 1px solid #ccc; padding: 4px 8px;"><option value=""' + (!status || status == '' ? ' selected' : '')
+    + '>ทั้งหมด</option><option value="TRUE"' + (status == 'TRUE' ? ' selected' : '')
+    + '>ถูกใช้แล้ว</option><option value="FALSE"' + (status == 'FALSE' ? ' selected' : '')
+    + '>ยังไม่ถูกใช้</option></select>&nbsp;&nbsp;หน้า&nbsp;<input type="text" style="width: 50px;height: 30px; border-radius: 8px; border: 1px solid #ccc; padding: 4px 8px; text-align: center;" name="page" value="' + (page ?? 1) + '" />&nbsp;/&nbsp;' + (numberWithCommas(Math.ceil(codes_select_count/page_size))) + '&nbsp;&nbsp;&nbsp;&nbsp;<button type="submit" style="border-radius: 10px; border: 1px solid #ccc; padding: 8px 32px; font-size: 16px; background-color: #E9E2ED; color: #000;">ค้นหา</button></form>'
+    + '<div style="margin-bottom: 24px; display: flex; align-items: center; justify-content: center; width: 100%;"><h4 style="width: 100%; text-align: center; margin: 0;">Code ทั้งหมด&nbsp;&nbsp;<span style="color: #10509D;">' + codes_count + '</span>&nbsp;&nbsp;&nbsp;&nbsp;ถูกใช้ไปแล้ว&nbsp;&nbsp;<span style="color: #9D1210;">' + codes_use_count + '</span>&nbsp;&nbsp;&nbsp;&nbsp;ยังไม่ถูกใช้&nbsp;&nbsp;<span style="color: #349D10;">' + codes_notuse_count + '</span></h4></div>'
+    + '<div style="margin-bottom: 4px; display: flex; align-items: center; justify-content: flex-end; width: 100%;"><h4 style="width: 100%; text-align: right; margin: 0;">ทั้งหมด&nbsp;&nbsp;' + (numberWithCommas(codes_select_count)) + ' code</h4></div>'
+    + table + '</div></div></body>'
+    + '<script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>'
+    + '<script>$(document).ready(() => {'
+    + '})</script>'
+    + '</html>';
+    res.send(html);
+}
 // #endregion
 
 const getFuncs = {
@@ -921,6 +970,7 @@ const getFuncs = {
     "send-address": getSendAddress,
     report,
     tracking,
+    codes,
     "report-export": reportExport,
     "tracking-export": trackingExport,
     "fail-submit": failSubmit,
@@ -964,6 +1014,54 @@ app.post('/init-codes', async (req, res) => {
             isSuccess: false,
             status_code: 400,
             message: "An error occurred while init code",
+        });
+   }
+});
+app.post('/add-codes', async (req, res) => {
+    try {
+        const { data } = req.body;
+        await readXlsxFile(Buffer.from(data, 'base64')).then(async (rows) => {
+            const rmHead = rows.slice(1);
+            const data = rmHead.map((item) => {
+                return "('" + (item && item.length > 0 ? item[0] : '') + "',FALSE,NOW())"
+            })
+            await client.query("INSERT INTO codes (code,is_use,updated_date) VALUES " + data.join(','));
+        })
+        res.send({
+            isSuccess: true,
+            status_code: 200,
+            message: "Uploaded",
+        });
+    } catch (err) {
+        console.log("Error add code:", err);
+        res.status(400).send({
+            isSuccess: false,
+            status_code: 400,
+            message: "An error occurred while add code",
+        });
+   }
+});
+app.post('/update-codes', async (req, res) => {
+    try {
+        const { data } = req.body;
+        await readXlsxFile(Buffer.from(data, 'base64')).then(async (rows) => {
+            const rmHead = rows.slice(1);
+            const data = rmHead.map((item) => {
+                return "UPDATE codes SET code='" + (item && item.length > 1 ? item[1] : '') + "', updated_date=NOW() WHERE code='" + (item && item.length > 0 ? item[0] : '') + "'"
+            })
+            await client.query(data.join(';'));
+        })
+        res.send({
+            isSuccess: true,
+            status_code: 200,
+            message: "Uploaded",
+        });
+    } catch (err) {
+        console.log("Error update code:", err);
+        res.status(400).send({
+            isSuccess: false,
+            status_code: 400,
+            message: "An error occurred while update code",
         });
    }
 });
